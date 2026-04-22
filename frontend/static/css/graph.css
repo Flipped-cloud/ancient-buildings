@@ -1,0 +1,248 @@
+/* ========================================
+   知识图谱页（最小侵入样式）
+   仅使用现有 CSS 变量与装帧语言
+   ======================================== */
+
+.graph-page {
+    position: relative;
+}
+
+.graph-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    align-items: center;
+    margin: 18px auto 0;
+}
+
+/* 嵌入数据页时：图谱在一个等宽面板中呈现为正方形 */
+.graph-embed-host .graph-toolbar {
+    justify-content: flex-start;
+    margin-top: 0;
+}
+
+.graph-embed-host .graph-search {
+    width: min(860px, 100%);
+}
+
+.graph-embed-host .graph-layout {
+    margin-top: 14px;
+}
+
+.graph-embed-host .graph-canvas {
+    height: auto;
+    min-height: 420px;
+    aspect-ratio: 10 / 7;
+}
+
+@media (max-width: 640px) {
+    .graph-embed-host .graph-canvas {
+        min-height: 340px;
+    }
+}
+
+.graph-search {
+    position: relative;
+    width: min(720px, 100%);
+}
+
+.graph-search-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.graph-search-input {
+    flex: 1;
+    height: 44px;
+    padding: 0 14px;
+    border-radius: var(--radius-btn);
+    border: 1px solid var(--border-soft);
+    background: var(--bg-panel);
+    color: var(--text-primary);
+    box-shadow: 0 1px 0 rgba(140, 108, 72, 0.10) inset;
+}
+
+.graph-search-input::placeholder {
+    color: var(--text-muted);
+}
+
+.graph-search-btn {
+    height: 44px;
+    padding: 0 14px;
+    border-radius: var(--radius-btn);
+    border: 1px solid var(--border-soft);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    box-shadow: var(--shadow-soft);
+}
+
+.graph-search-btn:hover {
+    box-shadow: var(--shadow-soft-hover);
+}
+
+.graph-search-results {
+    position: absolute;
+    top: calc(44px + 8px);
+    left: 0;
+    right: 0;
+    z-index: 10;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-card-sm);
+    box-shadow: var(--shadow-soft);
+    overflow: hidden;
+    display: block;
+}
+
+.graph-search-results.is-open {
+    display: block;
+}
+
+.graph-icon {
+    width: 18px;
+    height: 18px;
+    display: block;
+}
+
+#graph-reset-btn {
+    padding-left: 16px;
+    padding-right: 16px;
+    letter-spacing: 0.12em;
+}
+
+@media (max-width: 640px) {
+    .graph-drawer {
+        left: 12px;
+        right: 12px;
+        width: auto;
+    }
+}
+
+.graph-search-item {
+    width: 100%;
+    text-align: left;
+    padding: 10px 12px;
+    border: 0;
+    background: transparent;
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.graph-search-item:hover {
+    background: var(--bg-tint-50);
+}
+
+.graph-search-item small {
+    display: block;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.graph-layout {
+    position: relative;
+    width: 100%;
+    margin-top: 16px;
+}
+
+.graph-canvas {
+    width: 100%;
+    height: min(82vh, 850px);
+    min-height: 600px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-soft);
+    overflow: hidden;
+    position: relative;
+}
+
+.graph-canvas::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+        repeating-linear-gradient(0deg, transparent 0px, transparent 40px, var(--ornament-lattice) 41px, transparent 42px),
+        repeating-linear-gradient(90deg, transparent 0px, transparent 40px, var(--ornament-lattice) 41px, transparent 42px);
+    opacity: 0.4;
+}
+
+.graph-drawer {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 320px;
+    max-height: calc(100% - 40px);
+    background: rgba(255, 252, 246, 0.95);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-card);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    overflow-y: auto;
+    z-index: 100;
+}
+
+html.dark-mode .graph-drawer {
+    background: rgba(30, 26, 20, 0.95);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+
+.graph-drawer.is-hidden {
+    display: none;
+}
+
+.graph-drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 12px;
+    border-bottom: 1px solid var(--border-soft);
+    background: linear-gradient(180deg, rgba(255, 252, 246, 0.55), rgba(255, 252, 246, 0));
+}
+
+html.dark-mode .graph-drawer-header {
+    background: linear-gradient(180deg, rgba(255, 252, 246, 0.08), rgba(255, 252, 246, 0));
+}
+
+.graph-drawer-title {
+    font-family: var(--font-serif);
+    color: var(--text-primary);
+    font-weight: 700;
+}
+
+.graph-drawer-close {
+    border: 1px solid var(--border-soft);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    border-radius: var(--radius-btn);
+    padding: 6px 10px;
+}
+
+.graph-drawer-body {
+    padding: 12px 12px 14px;
+}
+
+.graph-kv {
+    display: grid;
+    grid-template-columns: 78px 1fr;
+    gap: 8px 10px;
+    font-size: 14px;
+}
+
+.graph-kv dt {
+    color: var(--text-muted);
+}
+
+.graph-kv dd {
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.graph-hint {
+    margin-top: 8px;
+    color: var(--text-muted);
+    text-align: center;
+    font-size: 13px;
+}

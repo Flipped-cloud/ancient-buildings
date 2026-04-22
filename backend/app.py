@@ -13,7 +13,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backend.services.data_service import DataService
-from backend.api import villages, policies, data as data_api, media
+from backend.api import villages, policies, data as data_api, media, graph
 
 # ==========================================
 # 1. 初始化 FastAPI 应用
@@ -59,6 +59,7 @@ app.include_router(villages.router, prefix="/api/villages", tags=["villages"])
 app.include_router(policies.router, prefix="/api/policies", tags=["policies"])
 app.include_router(data_api.router, prefix="/api/data", tags=["data"])
 app.include_router(media.router, prefix="/api/media", tags=["media"])
+app.include_router(graph.router, prefix="/api/graph", tags=["graph"])
 
 # ==========================================
 # 5. 基础路由

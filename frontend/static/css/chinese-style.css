@@ -1,131 +1,51 @@
 /* ========================================
-   国风美学设计
+   Chinese Style 补充样式
+   仅保留政策时间轴与轻量纹理
    ======================================== */
 
-/* 国风书法字体效果 */
-h1, h2, h3, h4, h5, h6 {
-    font-family: 'Noto Serif SC', serif;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-}
-
-/* 标题下方装饰线 */
-h2::after {
-    content: '';
-    display: block;
-    width: 60px;
-    height: 3px;
-    background: linear-gradient(90deg, #C0392B 0%, #8E44AD 100%);
-    margin-top: 0.5rem;
-}
-
-/* 宣纸质感 */
 .paper-texture {
-    background-image: 
+    background-image:
         repeating-linear-gradient(
             90deg,
             transparent,
-            transparent 1px,
-            rgba(255, 255, 255, 0.03) 1px,
-            rgba(255, 255, 255, 0.03) 2px
+            transparent 15px,
+            rgba(140, 108, 72, 0.04) 15px,
+            rgba(140, 108, 72, 0.04) 16px
         ),
         repeating-linear-gradient(
             0deg,
             transparent,
-            transparent 1px,
-            rgba(255, 255, 255, 0.03) 1px,
-            rgba(255, 255, 255, 0.03) 2px
+            transparent 21px,
+            rgba(140, 108, 72, 0.03) 21px,
+            rgba(140, 108, 72, 0.03) 22px
         );
 }
 
-/* 国风配色卡片 */
-.card-red {
-    border-left: 4px solid #C0392B;
-    background: linear-gradient(135deg, rgba(192, 57, 43, 0.05) 0%, rgba(240, 235, 229, 0.5) 100%);
-}
-
-.card-blue {
-    border-left: 4px solid #2C3E50;
-    background: linear-gradient(135deg, rgba(44, 62, 80, 0.05) 0%, rgba(240, 235, 229, 0.5) 100%);
-}
-
-.card-purple {
-    border-left: 4px solid #8E44AD;
-    background: linear-gradient(135deg, rgba(142, 68, 173, 0.05) 0%, rgba(240, 235, 229, 0.5) 100%);
-}
-
-/* 国风按钮样式 */
-.btn-classic {
-    position: relative;
-    padding: 0.875rem 2rem;
-    border: 2px solid #C0392B;
-    background: white;
-    color: #C0392B;
-    font-weight: 600;
-    border-radius: 0.375rem;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    overflow: hidden;
-}
-
-.btn-classic::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: #C0392B;
-    transition: left 0.3s ease;
-    z-index: -1;
-}
-
-.btn-classic:hover::before {
-    left: 0;
-}
-
-.btn-classic:hover {
-    color: white;
-}
-
-/* 装饰性分割线 */
 .divider-accent {
     position: relative;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, #C0392B 20%, #C0392B 80%, transparent);
-    margin: 2rem 0;
+    height: 1px;
+    background: rgba(140, 108, 72, 0.26);
+    margin: 1.8rem 0;
 }
 
 .divider-accent::before {
     content: '';
     position: absolute;
-    top: 50%;
     left: 50%;
+    top: 50%;
+    width: 6px;
+    height: 6px;
+    border-radius: 2px;
     transform: translate(-50%, -50%);
-    width: 8px;
-    height: 8px;
-    background: #C0392B;
-    border-radius: 50%;
+    background: var(--accent-red);
 }
 
-/* 古典纹样背景 */
-.pattern-bg {
-    background-image: 
-        radial-gradient(circle at 20% 50%, rgba(192, 57, 43, 0.05) 0%, transparent 50%),
-        radial-gradient(circle at 80% 80%, rgba(142, 68, 173, 0.05) 0%, transparent 50%);
-    background-attachment: fixed;
-}
-
-/* 右边框装饰 */
-.border-accent-right {
-    border-right: 3px solid #C0392B;
-    padding-right: 1.5rem;
-}
-
-/* 时间轴样式（用于政策页面） */
+/* ========================================
+   政策时间轴（浅色研究图录风）
+   ======================================== */
 .timeline {
     position: relative;
-    padding: 2rem 0;
+    padding: 1.8rem 0;
 }
 
 .timeline::before {
@@ -133,14 +53,15 @@ h2::after {
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
-    width: 3px;
-    height: 100%;
-    background: linear-gradient(180deg, #C0392B 0%, #8E44AD 100%);
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: rgba(140, 108, 72, 0.26);
 }
 
 .timeline-item {
-    margin-bottom: 3rem;
     position: relative;
+    margin-bottom: 2.2rem;
 }
 
 .timeline-item:nth-child(odd) {
@@ -156,122 +77,103 @@ h2::after {
 .timeline-dot {
     position: absolute;
     left: 50%;
-    top: 0;
-    width: 16px;
-    height: 16px;
-    background: white;
-    border: 3px solid #C0392B;
-    border-radius: 50%;
+    top: 0.2rem;
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
     transform: translateX(-50%);
-    z-index: 10;
+    background: rgba(178, 58, 43, 0.9);
+    border: 2px solid rgba(255, 252, 246, 0.95);
+    z-index: 2;
 }
 
 .timeline-content {
-    background: white;
-    padding: 1.5rem;
-    border-radius: 0.5rem;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
-    transition: all 0.3s ease;
+    background: var(--bg-card);
+    border: 1px solid rgba(140, 108, 72, 0.22);
+    border-radius: var(--radius-card);
+    box-shadow: 0 8px 16px rgba(66, 44, 22, 0.08);
+    padding: 1.15rem 1.2rem;
+}
+
+html.dark-mode .timeline::before {
+    background: rgba(200, 154, 75, 0.20);
+}
+
+html.dark-mode .timeline-dot {
+    background: rgba(178, 58, 43, 0.9);
+    border-color: rgba(36, 31, 24, 0.9);
+}
+
+html.dark-mode .timeline-content {
+    border-color: rgba(200, 154, 75, 0.22);
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.55);
+}
+
+html.dark-mode .timeline-content:hover {
+    border-color: rgba(200, 154, 75, 0.28);
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.62);
+}
+
+html.dark-mode .timeline-content .mt-4.overflow-hidden {
+    background: rgba(255, 252, 246, 0.04);
+    border-color: rgba(200, 154, 75, 0.18) !important;
+    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5);
 }
 
 .timeline-content:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 10px 18px rgba(66, 44, 22, 0.1);
+    border-color: rgba(140, 108, 72, 0.28);
 }
 
 .timeline-year {
-    font-size: 1.5rem;
+    color: var(--accent-red);
+    font-size: 1.2rem;
     font-weight: 700;
-    color: #C0392B;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.35rem;
+    font-family: var(--font-serif);
 }
 
 .timeline-title {
-    font-size: 1.125rem;
-    font-weight: 600;
-    color: #2C3E50;
-    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+    font-size: 1.02rem;
+    font-weight: 700;
+    margin-bottom: 0.35rem;
 }
 
 .timeline-text {
-    color: #666;
-    font-size: 0.95rem;
-    line-height: 1.6;
+    color: var(--text-secondary);
+    font-size: 0.94rem;
+    line-height: 1.65;
 }
 
-/* 响应式时间轴 */
+.timeline-content .mt-4.overflow-hidden {
+    background: var(--bg-panel);
+    border: 1px solid rgba(140, 108, 72, 0.2) !important;
+    box-shadow: 0 4px 10px rgba(66, 44, 22, 0.08);
+}
+
+.timeline-content .mt-4.overflow-hidden img {
+    display: block;
+    width: 100%;
+    height: auto;
+    filter: saturate(0.96) contrast(1.02);
+}
+
 @media (max-width: 768px) {
     .timeline::before {
         left: 0;
     }
-    
+
     .timeline-item,
     .timeline-item:nth-child(odd),
     .timeline-item:nth-child(even) {
         text-align: left;
-        padding-left: 4rem;
+        padding-left: 2.6rem;
         padding-right: 0;
     }
-    
+
     .timeline-dot {
         left: 0;
-        transform: translateX(-8px);
+        transform: translateX(-50%);
     }
-}
-
-/* 国风动画 */
-@keyframes float {
-    0%, 100% {
-        transform: translateY(0px);
-    }
-    50% {
-        transform: translateY(-10px);
-    }
-}
-
-.float {
-    animation: float 3s ease-in-out infinite;
-}
-
-@keyframes slideInLeft {
-    from {
-        opacity: 0;
-        transform: translateX(-30px);
-    }
-    to {
-        opacity: 1;
-        transform: translateX(0);
-    }
-}
-
-@keyframes slideInRight {
-    from {
-        opacity: 0;
-        transform: translateX(30px);
-    }
-    to {
-        opacity: 1;
-        transform: translateX(0);
-    }
-}
-
-.slide-in-left {
-    animation: slideInLeft 0.6s ease-out;
-}
-
-.slide-in-right {
-    animation: slideInRight 0.6s ease-out;
-}
-
-/* 暗淡模式国风调整 */
-body.dark-mode .divider-accent {
-    background: linear-gradient(90deg, transparent, #ff6b6b 20%, #ff6b6b 80%, transparent);
-}
-
-body.dark-mode .timeline-dot {
-    border-color: #ff6b6b;
-}
-
-body.dark-mode .timeline-year {
-    color: #ff6b6b;
 }

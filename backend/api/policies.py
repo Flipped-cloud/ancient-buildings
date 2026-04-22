@@ -4,6 +4,7 @@
 from fastapi import APIRouter
 import os
 import json
+import re
 from urllib.parse import quote
 
 router = APIRouter()
@@ -16,17 +17,32 @@ def _find_policy_image_url(year: str):
         return None
 
     extensions = [".jpg", ".jpeg", ".png", ".webp"]
-    # 先精确匹配年份文件，如 2012.png
-    for ext in extensions:
-        filename = f"{year}{ext}"
-        full_path = os.path.join(base_dir, filename)
-        if os.path.isfile(full_path):
-            return f"/assets/images/policies/{quote(filename)}"
+    year = str(year).strip()
+    if not year:
+        return None
+
+    # 先做严格精确匹配，兼容 `2023.png` 和 `2023年.png`。
+    exact_names = [year]
+    if not year.endswith("年"):
+        exact_names.append(f"{year}年")
+
+    for name in exact_names:
+        for ext in extensions:
+            filename = f"{name}{ext}"
+            full_path = os.path.join(base_dir, filename)
+            if os.path.isfile(full_path):
+                return f"/assets/images/policies/{quote(filename)}"
 
     # 再尝试前缀匹配，兼容 2023-2025.png 这类命名
     try:
         candidates = sorted(os.listdir(base_dir))
     except OSError:
+        return None
+
+    # 单年份（如 2023）不再回退到区间前缀匹配（如 2023-2025年.jpg）。
+    is_single_year = bool(re.fullmatch(r"\d{4}", year))
+
+    if is_single_year:
         return None
 
     for item in candidates:

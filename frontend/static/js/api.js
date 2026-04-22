@@ -2,10 +2,36 @@
  * API 调用工具模块
  */
 
-const API_BASE = 'http://127.0.0.1:8000/api';
+// Use same-origin API base so the app works on any host/port.
+const API_BASE = '/api';
 
 // 配置缓存
 let configCache = null;
+
+async function fetchJson(url, { timeoutMs = 30000 } = {}) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    let response;
+    try {
+        response = await fetch(url, { signal: controller.signal });
+    } finally {
+        clearTimeout(timer);
+    }
+
+    if (!response.ok) {
+        let detail = '';
+        try {
+            detail = await response.text();
+        } catch {
+            // ignore
+        }
+        const snippet = detail ? `: ${detail.slice(0, 200)}` : '';
+        throw new Error(`HTTP ${response.status} ${response.statusText}${snippet}`);
+    }
+
+    return await response.json();
+}
 
 /**
  * 获取系统配置
@@ -14,8 +40,7 @@ async function getConfig() {
     if (configCache) return configCache;
     
     try {
-        const response = await fetch('http://127.0.0.1:8000/api/config');
-        configCache = await response.json();
+        configCache = await fetchJson(`${API_BASE}/config`);
         return configCache;
     } catch (error) {
         console.error('配置获取失败:', error);
@@ -28,8 +53,7 @@ async function getConfig() {
  */
 async function getStatistics() {
     try {
-        const response = await fetch(`${API_BASE}/villages/statistics`);
-        return await response.json();
+        return await fetchJson(`${API_BASE}/villages/statistics`);
     } catch (error) {
         console.error('统计信息获取失败:', error);
         return null;
@@ -41,8 +65,7 @@ async function getStatistics() {
  */
 async function getProvinces() {
     try {
-        const response = await fetch(`${API_BASE}/villages/provinces`);
-        const data = await response.json();
+        const data = await fetchJson(`${API_BASE}/villages/provinces`);
         return data.provinces || [];
     } catch (error) {
         console.error('省份列表获取失败:', error);
@@ -58,8 +81,7 @@ async function getCities(province) {
         const url = province 
             ? `${API_BASE}/villages/cities?province=${encodeURIComponent(province)}`
             : `${API_BASE}/villages/cities`;
-        const response = await fetch(url);
-        const data = await response.json();
+        const data = await fetchJson(url);
         return data.cities || [];
     } catch (error) {
         console.error('城市列表获取失败:', error);
@@ -72,8 +94,7 @@ async function getCities(province) {
  */
 async function getPolicies() {
     try {
-        const response = await fetch(`${API_BASE}/policies/list`);
-        const data = await response.json();
+        const data = await fetchJson(`${API_BASE}/policies/list`);
         return data.policies || [];
     } catch (error) {
         console.error('政策列表获取失败:', error);
@@ -86,8 +107,7 @@ async function getPolicies() {
  */
 async function getPolicyTimeline() {
     try {
-        const response = await fetch(`${API_BASE}/policies/timeline`);
-        const data = await response.json();
+        const data = await fetchJson(`${API_BASE}/policies/timeline`);
         return data.timeline || [];
     } catch (error) {
         console.error('政策时间轴获取失败:', error);
@@ -120,8 +140,7 @@ async function getVillages(filters = {}) {
             url += '?' + params.toString();
         }
         
-        const response = await fetch(url);
-        const data = await response.json();
+        const data = await fetchJson(url);
         return data.villages || [];
     } catch (error) {
         console.error('村落数据获取失败:', error);
@@ -134,8 +153,7 @@ async function getVillages(filters = {}) {
  */
 async function getDistributionByProvince() {
     try {
-        const response = await fetch(`${API_BASE}/data/distribution-by-province`);
-        return await response.json();
+        return await fetchJson(`${API_BASE}/data/distribution-by-province`);
     } catch (error) {
         console.error('省份分布获取失败:', error);
         return [];
@@ -147,8 +165,7 @@ async function getDistributionByProvince() {
  */
 async function getDistributionByBatch() {
     try {
-        const response = await fetch(`${API_BASE}/data/distribution-by-batch`);
-        return await response.json();
+        return await fetchJson(`${API_BASE}/data/distribution-by-batch`);
     } catch (error) {
         console.error('批次分布获取失败:', error);
         return [];
@@ -174,8 +191,7 @@ async function getCoordinates(filters = {}) {
             url += '?' + params.toString();
         }
         
-        const response = await fetch(url);
-        return await response.json();
+        return await fetchJson(url);
     } catch (error) {
         console.error('坐标数据获取失败:', error);
         return [];
@@ -187,8 +203,7 @@ async function getCoordinates(filters = {}) {
  */
 async function getDataSummary() {
     try {
-        const response = await fetch(`${API_BASE}/data/summary`);
-        return await response.json();
+        return await fetchJson(`${API_BASE}/data/summary`);
     } catch (error) {
         console.error('数据摘要获取失败:', error);
         return null;
@@ -200,8 +215,7 @@ async function getDataSummary() {
  */
 async function getProvinceGeoJSON(province) {
     try {
-        const response = await fetch(`${API_BASE}/villages/geojson/${encodeURIComponent(province)}`);
-        return await response.json();
+        return await fetchJson(`${API_BASE}/villages/geojson/${encodeURIComponent(province)}`);
     } catch (error) {
         console.error(`GeoJSON 获取失败 (${province}):`, error);
         return null;
@@ -213,8 +227,7 @@ async function getProvinceGeoJSON(province) {
  */
 async function getMediaList() {
     try {
-        const response = await fetch(`${API_BASE}/media/list`);
-        const data = await response.json();
+        const data = await fetchJson(`${API_BASE}/media/list`);
         return data.videos || [];
     } catch (error) {
         console.error('媒体列表获取失败:', error);
@@ -227,8 +240,7 @@ async function getMediaList() {
  */
 async function getProvinceGallery(province, limit = 6) {
     try {
-        const response = await fetch(`${API_BASE}/media/province-gallery/${encodeURIComponent(province)}?limit=${limit}`);
-        const data = await response.json();
+        const data = await fetchJson(`${API_BASE}/media/province-gallery/${encodeURIComponent(province)}?limit=${limit}`);
         return data.images || [];
     } catch (error) {
         console.error('省份图片库获取失败:', error);

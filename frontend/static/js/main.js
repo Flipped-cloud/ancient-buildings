@@ -5,6 +5,53 @@
 
 let currentPage = 'home';
 
+function scrollToIdWhenReady(elementId, offset = 80, timeoutMs = 3000) {
+    const start = performance.now();
+    return new Promise((resolve) => {
+        function tick() {
+            const el = document.getElementById(elementId);
+            if (el) {
+                smoothScrollTo(el, offset);
+                resolve(true);
+                return;
+            }
+            if (performance.now() - start > timeoutMs) {
+                resolve(false);
+                return;
+            }
+            requestAnimationFrame(tick);
+        }
+        tick();
+    });
+}
+
+function safeResizePlotlyWithin(root) {
+    if (typeof Plotly === 'undefined') return;
+    if (!root) return;
+    const charts = root.querySelectorAll?.('.js-plotly-plot');
+    if (!charts || charts.length === 0) return;
+    charts.forEach((el) => {
+        try {
+            Plotly.Plots.resize(el);
+        } catch {
+            // ignore
+        }
+    });
+}
+
+function setActiveNav(page) {
+    document.querySelectorAll('a.nav-link[data-page]').forEach((link) => {
+        const p = link.getAttribute('data-page');
+        const active = p === page;
+        link.classList.toggle('is-active', active);
+        if (active) {
+            link.setAttribute('aria-current', 'page');
+        } else {
+            link.removeAttribute('aria-current');
+        }
+    });
+}
+
 const pageLoaded = {
     policy: false,
     data: false,
@@ -23,8 +70,27 @@ function escapeHtml(input) {
 }
 
 function navigate(page) {
+    // 兼容：旧的“知识图谱”入口已迁移到数据页
+    const wantsGraphAnchor = page === 'graph';
+    if (wantsGraphAnchor) page = 'data';
+
+    if (currentPage === 'media' && page !== 'media') {
+        const player = document.getElementById('media-player');
+        if (player && typeof player.pause === 'function') {
+            try {
+                player.pause();
+            } catch {
+                // ignore
+            }
+        }
+    }
+
     document.querySelectorAll('.page-section').forEach((el) => {
         el.classList.add('hidden');
+        // 防止某些页面用内联 style 设置 display，覆盖 Tailwind 的 hidden
+        if (el?.style) {
+            el.style.removeProperty('display');
+        }
     });
 
     const pageElement = document.getElementById(`page-${page}`);
@@ -33,6 +99,7 @@ function navigate(page) {
     }
 
     currentPage = page;
+    setActiveNav(page);
 
     switch (page) {
         case 'policy':
@@ -63,7 +130,31 @@ function navigate(page) {
             break;
     }
 
+    // 页面切换后：恢复可视化组件尺寸（hidden -> visible 常见空白问题）
+    requestAnimationFrame(() => {
+        setTimeout(() => {
+            if (pageElement) safeResizePlotlyWithin(pageElement);
+            // Cytoscape: 如果嵌入图谱已初始化，显示后做一次 resize/render
+            if (page === 'data') {
+                const host = document.getElementById('data-graph-content');
+                const cy = host && (host.__cy || host._cy);
+                if (cy && typeof cy.resize === 'function') {
+                    try {
+                        cy.resize();
+                        if (typeof cy.render === 'function') cy.render();
+                    } catch {
+                        // ignore
+                    }
+                }
+            }
+        }, 80);
+    });
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    if (wantsGraphAnchor) {
+        scrollToIdWhenReady('data-graph-panel', 95, 4000);
+    }
 }
 
 async function loadPolicyPage() {
@@ -76,6 +167,7 @@ async function loadPolicyPage() {
         const timeline = await getPolicyTimeline();
         if (!timeline || timeline.length === 0) {
             showErrorState(container, '暂无政策数据');
+            pageLoaded.policy = false;
             return;
         }
 
@@ -88,14 +180,14 @@ async function loadPolicyPage() {
                 const delay = Math.min(idx * 0.08, 0.8);
 
                 return `
-                    <article class="timeline-item" style="animation: slideUp 0.4s ease ${delay}s both;">
+                    <article class="timeline-item">
                         <div class="timeline-dot"></div>
                         <div class="timeline-content">
                             <div class="timeline-year">${year}</div>
                             <h3 class="timeline-title">${title}</h3>
                             <p class="timeline-text whitespace-pre-line">${content}</p>
                             ${imageUrl ? `
-                                <div class="mt-4 overflow-hidden rounded-lg border border-gray-200">
+                                <div class="mt-4 overflow-hidden rounded-lg catalog-figure">
                                     <img src="${imageUrl}" alt="${title}" class="w-full h-56 object-cover" loading="lazy">
                                 </div>
                             ` : ''}
@@ -106,23 +198,23 @@ async function loadPolicyPage() {
             .join('');
 
         container.innerHTML = `
-            <section class="max-w-6xl mx-auto px-4 py-10">
-                <header class="text-center mb-12">
-                    <h2 class="text-4xl md:text-5xl font-bold text-gray-800 mb-3">相关政策</h2>
+            <section class="max-w-6xl mx-auto px-4 py-10 paper-page-section">
+                <header class="text-center mb-12 catalog-page-header">
+                    <h2 class="text-4xl md:text-5xl font-bold text-gray-800 mb-3 catalog-section-title">相关政策</h2>
                     <p class="text-gray-600 max-w-3xl mx-auto">从 2012 年到现在，系统呈现传统村落保护政策的关键节点与演进路径。</p>
                 </header>
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
-                    <div class="stat-card">
-                        <div class="text-3xl font-bold text-red-600">${timeline.length}</div>
+                    <div class="stat-card catalog-stat-card" data-stat="policy-nodes">
+                        <div class="text-3xl font-bold">${timeline.length}</div>
                         <div class="text-gray-600 mt-2">政策节点</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="text-3xl font-bold text-blue-600">${escapeHtml(timeline[0]?.year || '')}</div>
+                    <div class="stat-card catalog-stat-card" data-stat="policy-first">
+                        <div class="text-3xl font-bold">${escapeHtml(timeline[0]?.year || '')}</div>
                         <div class="text-gray-600 mt-2">最早年份</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="text-3xl font-bold text-green-600">${escapeHtml(timeline[timeline.length - 1]?.year || '')}</div>
+                    <div class="stat-card catalog-stat-card" data-stat="policy-last">
+                        <div class="text-3xl font-bold">${escapeHtml(timeline[timeline.length - 1]?.year || '')}</div>
                         <div class="text-gray-600 mt-2">最新年份</div>
                     </div>
                 </div>
@@ -135,6 +227,7 @@ async function loadPolicyPage() {
     } catch (error) {
         console.error('政策页面加载失败:', error);
         showErrorState(container, '政策数据加载失败');
+        pageLoaded.policy = false;
     }
 }
 
@@ -151,14 +244,14 @@ function renderVillageRows(villages) {
         .map((v, idx) => {
             const batch = escapeHtml(v.Batch_Label || '未知');
             return `
-                <tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} border-b border-gray-100 hover:bg-amber-50 transition">
+                <tr class="catalog-table-row${idx % 2 === 0 ? '' : ' is-alt'}">
                     <td class="px-4 py-3 text-gray-500">${idx + 1}</td>
                     <td class="px-4 py-3 font-medium text-gray-800">${escapeHtml(v.Province || '-')}</td>
                     <td class="px-4 py-3 text-gray-700">${escapeHtml(v.City || '-')}</td>
                     <td class="px-4 py-3 text-gray-700">${escapeHtml(v.County || '-')}</td>
                     <td class="px-4 py-3 text-gray-700">${escapeHtml(v.Town || '-')}</td>
                     <td class="px-4 py-3 font-semibold text-gray-800">${escapeHtml(v.Village || v.Title || '-')}</td>
-                    <td class="px-4 py-3 text-center"><span class="inline-block px-2 py-1 rounded-full bg-red-50 text-red-700 text-xs font-semibold">${batch}</span></td>
+                    <td class="px-4 py-3 text-center"><span class="seal-badge inline-block px-2 py-1 rounded-full text-xs font-semibold">${batch}</span></td>
                 </tr>
             `;
         })
@@ -184,8 +277,8 @@ function renderBatchDistribution(villages) {
                         <span class="text-gray-700 font-medium">${escapeHtml(label)}</span>
                         <span class="text-gray-500">${count}</span>
                     </div>
-                    <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div class="h-full bg-gradient-to-r from-red-400 to-red-600 rounded-full" style="width:${width}%"></div>
+                    <div class="h-2 catalog-progress-track overflow-hidden">
+                        <div class="h-full catalog-progress-fill" style="width:${width}%"></div>
                     </div>
                 </div>
             `;
@@ -294,99 +387,99 @@ async function loadDataPage() {
         ]);
 
         container.innerHTML = `
-            <section class="max-w-7xl mx-auto px-4 py-10">
-                <header class="text-center mb-10">
-                    <h2 class="text-4xl md:text-5xl font-bold text-gray-800 mb-3">数据一览</h2>
+            <section class="max-w-7xl mx-auto px-4 py-10 paper-page-section">
+                <header class="text-center mb-10 catalog-page-header">
+                    <h2 class="text-4xl md:text-5xl font-bold text-gray-800 mb-3 catalog-section-title">数据一览</h2>
                     <p class="text-gray-600 max-w-3xl mx-auto">按省份、城市、批次进行联动筛选，查看传统村落的结构分布和明细数据。</p>
                 </header>
 
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                    <div class="stat-card"><div class="text-3xl font-bold text-red-600 app-num">${Number(stats?.total || 0)}</div><div class="text-gray-600 mt-2">村落总数</div></div>
-                    <div class="stat-card"><div class="text-3xl font-bold text-blue-600 app-num">${stats?.provinces || 0}</div><div class="text-gray-600 mt-2">覆盖省份</div></div>
-                    <div class="stat-card"><div class="text-3xl font-bold text-green-600 app-num">${stats?.cities || 0}</div><div class="text-gray-600 mt-2">城市县区</div></div>
-                    <div class="stat-card"><div class="text-3xl font-bold text-purple-600 app-num">${stats?.batches || 0}</div><div class="text-gray-600 mt-2">保护批次</div></div>
+                    <div class="stat-card catalog-stat-card" data-stat="villages"><div class="text-3xl font-bold app-num">${Number(stats?.total || 0)}</div><div class="text-gray-600 mt-2">村落总数</div></div>
+                    <div class="stat-card catalog-stat-card" data-stat="provinces"><div class="text-3xl font-bold app-num">${stats?.provinces || 0}</div><div class="text-gray-600 mt-2">覆盖省份</div></div>
+                    <div class="stat-card catalog-stat-card" data-stat="cities"><div class="text-3xl font-bold app-num">${stats?.cities || 0}</div><div class="text-gray-600 mt-2">城市县区</div></div>
+                    <div class="stat-card catalog-stat-card" data-stat="batches"><div class="text-3xl font-bold app-num">${stats?.batches || 0}</div><div class="text-gray-600 mt-2">保护批次</div></div>
                 </div>
 
-                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-8">
+                <div class="paper-panel catalog-panel p-5 mb-8">
                     <h3 class="text-lg font-semibold text-gray-800 mb-4">筛选条件</h3>
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-                        <select id="data-filter-province" class="px-4 py-2 border border-gray-300 rounded-lg">
+                        <select id="data-filter-province" class="paper-input px-4 py-2">
                             <option value="">全部省份</option>
                         </select>
-                        <select id="data-filter-city" class="px-4 py-2 border border-gray-300 rounded-lg">
+                        <select id="data-filter-city" class="paper-input px-4 py-2">
                             <option value="">全部城市</option>
                         </select>
-                        <select id="data-filter-batch" class="px-4 py-2 border border-gray-300 rounded-lg">
+                        <select id="data-filter-batch" class="paper-input px-4 py-2">
                             <option value="">全部批次</option>
                         </select>
-                        <input id="data-filter-keyword" type="text" class="px-4 py-2 border border-gray-300 rounded-lg" placeholder="村落名称关键词">
+                        <input id="data-filter-keyword" type="text" class="paper-input px-4 py-2" placeholder="村落名称关键词">
                     </div>
                     <div class="flex flex-wrap gap-3 mt-4">
-                        <button id="data-filter-run" class="btn btn-primary px-5 py-2">执行筛选</button>
-                        <button id="data-filter-reset" class="btn btn-secondary px-5 py-2">重置</button>
+                        <button id="data-filter-run" class="btn btn-primary seal-button px-5 py-2">执行筛选</button>
+                        <button id="data-filter-reset" class="btn btn-secondary ghost-button px-5 py-2">重置</button>
                         <span id="data-filter-result" class="text-sm text-gray-500 self-center"></span>
                     </div>
                 </div>
 
-                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-8">
+                <div class="paper-panel catalog-panel p-5 mb-8">
                     <div class="flex flex-wrap gap-2 mb-4" id="data-tab-head">
-                        <button data-tab="map" class="px-4 py-2 rounded-lg bg-red-600 text-white text-sm">空间分布可视化</button>
-                        <button data-tab="stats" class="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 text-sm">多维统计分析</button>
-                        <button data-tab="table" class="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 text-sm">数据明细</button>
+                        <button data-tab="map" class="catalog-tab is-active" type="button">空间分布可视化</button>
+                        <button data-tab="stats" class="catalog-tab" type="button">多维统计分析</button>
+                        <button data-tab="table" class="catalog-tab" type="button">数据明细</button>
                     </div>
 
                     <div id="data-tab-map" class="space-y-4">
                         <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-                            <select id="data-map-mode" class="px-4 py-2 border border-gray-300 rounded-lg">
+                            <select id="data-map-mode" class="paper-input px-4 py-2">
                                 <option value="point">传统村落点位图</option>
                                 <option value="density">空间核密度图</option>
                                 <option value="cluster">空间聚类分析</option>
                             </select>
                             <div>
-                                <div class="text-xs text-gray-600 mb-1">核密度半径 <span id="label-map-radius" class="text-red-600">15</span></div>
-                                <input id="data-map-radius" type="range" min="2" max="30" value="15" class="w-full">
+                                <div class="text-xs text-gray-600 mb-1">核密度半径 <span id="label-map-radius" class="seal-accent">15</span></div>
+                                <input id="data-map-radius" type="range" min="2" max="30" value="15" class="w-full catalog-slider">
                             </div>
                             <div>
-                                <div class="text-xs text-gray-600 mb-1">透明度 <span id="label-map-opacity" class="text-red-600">0.70</span></div>
-                                <input id="data-map-opacity" type="range" min="10" max="100" value="70" class="w-full">
+                                <div class="text-xs text-gray-600 mb-1">透明度 <span id="label-map-opacity" class="seal-accent">0.70</span></div>
+                                <input id="data-map-opacity" type="range" min="10" max="100" value="70" class="w-full catalog-slider">
                             </div>
                             <div>
-                                <div class="text-xs text-gray-600 mb-1">聚类数量K <span id="label-map-k" class="text-red-600">6</span></div>
-                                <input id="data-map-k" type="range" min="2" max="15" value="6" class="w-full">
+                                <div class="text-xs text-gray-600 mb-1">聚类数量K <span id="label-map-k" class="seal-accent">6</span></div>
+                                <input id="data-map-k" type="range" min="2" max="15" value="6" class="w-full catalog-slider">
                             </div>
                         </div>
-                        <div id="data-map-chart" class="h-[620px]"></div>
+                        <div id="data-map-chart" class="h-[620px] catalog-chart-frame"></div>
                     </div>
 
                     <div id="data-tab-stats" class="hidden space-y-4">
                         <div class="flex flex-wrap gap-2" id="stats-subtab-head">
-                            <button data-subtab="hierarchy" class="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm">层级结构</button>
-                            <button data-subtab="trend" class="px-3 py-2 rounded-lg bg-gray-100 text-gray-700 text-sm">趋势与流向</button>
-                            <button data-subtab="geo" class="px-3 py-2 rounded-lg bg-gray-100 text-gray-700 text-sm">地理特征</button>
-                            <button data-subtab="mining" class="px-3 py-2 rounded-lg bg-gray-100 text-gray-700 text-sm">深度挖掘</button>
+                            <button data-subtab="hierarchy" class="catalog-subtab is-active" type="button">层级结构</button>
+                            <button data-subtab="trend" class="catalog-subtab" type="button">趋势与流向</button>
+                            <button data-subtab="geo" class="catalog-subtab" type="button">地理特征</button>
+                            <button data-subtab="mining" class="catalog-subtab" type="button">深度挖掘</button>
                         </div>
 
                         <div id="stats-subtab-hierarchy" class="space-y-4">
                             <div class="grid grid-cols-1 2xl:grid-cols-2 gap-6">
-                                <div id="chart-sunburst" class="w-full h-[540px]"></div>
-                                <div id="chart-treemap" class="w-full h-[540px]"></div>
+                                <div id="chart-sunburst" class="w-full h-[540px] catalog-chart-frame"></div>
+                                <div id="chart-treemap" class="w-full h-[540px] catalog-chart-frame"></div>
                             </div>
                         </div>
 
                         <div id="stats-subtab-trend" class="hidden space-y-4">
-                            <div id="chart-parcats" class="w-full h-[620px]"></div>
-                            <div id="chart-batch-bar" class="w-full h-[460px]"></div>
+                            <div id="chart-parcats" class="w-full h-[620px] catalog-chart-frame"></div>
+                            <div id="chart-batch-bar" class="w-full h-[460px] catalog-chart-frame"></div>
                         </div>
 
                         <div id="stats-subtab-geo" class="hidden">
-                            <div id="chart-violin" class="w-full h-[500px]"></div>
+                            <div id="chart-violin" class="w-full h-[500px] catalog-chart-frame"></div>
                         </div>
 
                         <div id="stats-subtab-mining" class="hidden space-y-4">
-                            <div id="chart-suffix-bar" class="w-full h-[500px]"></div>
+                            <div id="chart-suffix-bar" class="w-full h-[500px] catalog-chart-frame"></div>
                             <div class="grid grid-cols-1 2xl:grid-cols-5 gap-4 items-start">
-                                <div id="chart-center-track" class="h-[520px] 2xl:col-span-3"></div>
-                                <div class="bg-gray-50 rounded-lg border border-gray-200 p-4 overflow-auto max-h-[520px] 2xl:col-span-2">
+                                <div id="chart-center-track" class="h-[520px] 2xl:col-span-3 catalog-chart-frame"></div>
+                                <div class="paper-panel catalog-panel p-4 overflow-auto max-h-[520px] 2xl:col-span-2">
                                     <h4 class="font-semibold text-gray-800 mb-3">空间孤立度分析（前十）</h4>
                                     <div id="table-isolation" class="text-sm"></div>
                                 </div>
@@ -398,27 +491,37 @@ async function loadDataPage() {
                 </div>
 
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                    <div class="paper-panel catalog-panel p-5" data-panel="province-top">
                         <h3 class="text-lg font-semibold text-gray-800 mb-4">省份分布 Top 12</h3>
                         <div id="province-dist-table"></div>
                     </div>
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                    <div class="paper-panel catalog-panel p-5" data-panel="batch-bars">
                         <h3 class="text-lg font-semibold text-gray-800 mb-4">当前结果批次分布</h3>
                         <div id="batch-dist-bars"></div>
                     </div>
                 </div>
 
-                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <div id="data-graph-panel" class="paper-panel catalog-table-panel overflow-hidden mb-8">
+                    <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                        <h3 class="text-lg font-semibold text-gray-800">知识图谱</h3>
+                        <div class="text-xs text-gray-500">可搜索省份 / 批次 / 村落名</div>
+                    </div>
+                    <div class="p-5">
+                        <div id="data-graph-content" class="graph-embed-host"></div>
+                    </div>
+                </div>
+
+                <div class="paper-panel catalog-table-panel overflow-hidden">
                     <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
                         <h3 id="data-detail-title" class="text-lg font-semibold text-gray-800">村落明细（最多 300 条）</h3>
                         <div class="flex items-center gap-3">
                             <span id="data-table-count" class="text-sm text-gray-500"></span>
-                            <button id="data-export-btn" class="px-3 py-1.5 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700">导出筛选数据</button>
+                            <button id="data-export-btn" class="seal-button px-3 py-1.5 text-sm rounded-lg">导出筛选数据</button>
                         </div>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-sm">
-                            <thead class="bg-gray-50 border-b border-gray-200">
+                            <thead class="catalog-table-head border-b border-gray-200">
                                 <tr>
                                     <th class="px-4 py-3 text-left">#</th>
                                     <th class="px-4 py-3 text-left">省份</th>
@@ -446,6 +549,28 @@ async function loadDataPage() {
         const dataTableCount = document.getElementById('data-table-count');
         const exportBtn = document.getElementById('data-export-btn');
         const tbody = document.getElementById('data-village-tbody');
+
+        // 迁移后的知识图谱：初始化到数据页中间区域
+        const graphHost = document.getElementById('data-graph-content');
+        async function initEmbeddedGraph() {
+            if (!graphHost) return;
+            if (graphHost.dataset.graphInited === '1' || graphHost.dataset.graphInited === 'loading') return;
+            graphHost.dataset.graphInited = 'loading';
+            showLoadingState(graphHost, '正在加载知识图谱...');
+            try {
+                await ensureGraphScriptLoaded();
+                if (!window.GraphPage || typeof window.GraphPage.initGraphPage !== 'function') {
+                    throw new Error('GraphPage.initGraphPage not found');
+                }
+                await window.GraphPage.initGraphPage(graphHost);
+                graphHost.dataset.graphInited = '1';
+            } catch (e) {
+                console.error('嵌入式知识图谱加载失败:', e);
+                delete graphHost.dataset.graphInited;
+                showErrorState(graphHost, '知识图谱模块加载失败');
+            }
+        }
+        initEmbeddedGraph();
 
         provinces.forEach((p) => {
             const option = document.createElement('option');
@@ -485,11 +610,11 @@ async function loadDataPage() {
                 ? '省份分布 Top 10'
                 : (selectedCity ? '县区分布 Top 5' : '城市分布 Top 5');
 
-            const titleNode = distTable.closest('.bg-white')?.querySelector('h3');
+            const titleNode = distTable.closest('[data-panel="province-top"]')?.querySelector('h3');
             if (titleNode) titleNode.textContent = title;
 
             const tbodyHtml = ordered.map((item, idx) => `
-                <tr class="border-b border-gray-100">
+                <tr class="catalog-table-row${idx % 2 === 0 ? '' : ' is-alt'}">
                     <td class="px-3 py-2 text-gray-500">${idx + 1}</td>
                     <td class="px-3 py-2 font-medium text-gray-800">${escapeHtml(item[0])}</td>
                     <td class="px-3 py-2 text-right text-gray-700">${item[1]}</td>
@@ -499,7 +624,7 @@ async function loadDataPage() {
 
             distTable.innerHTML = `
                 <table class="w-full text-sm">
-                    <thead class="text-gray-500 bg-gray-50">
+                    <thead class="catalog-table-head">
                         <tr>
                             <th class="px-3 py-2 text-left">#</th>
                             <th class="px-3 py-2 text-left">地区</th>
@@ -587,9 +712,7 @@ async function loadDataPage() {
             });
             document.querySelectorAll('#data-tab-head [data-tab]').forEach((btn) => {
                 const active = btn.getAttribute('data-tab') === tab;
-                btn.className = active
-                    ? 'px-4 py-2 rounded-lg bg-red-600 text-white text-sm'
-                    : 'px-4 py-2 rounded-lg bg-gray-100 text-gray-700 text-sm';
+                btn.className = active ? 'catalog-tab is-active' : 'catalog-tab';
             });
 
             requestAnimationFrame(() => {
@@ -604,9 +727,7 @@ async function loadDataPage() {
             });
             document.querySelectorAll('#stats-subtab-head [data-subtab]').forEach((btn) => {
                 const active = btn.getAttribute('data-subtab') === tab;
-                btn.className = active
-                    ? 'px-3 py-2 rounded-lg bg-blue-600 text-white text-sm'
-                    : 'px-3 py-2 rounded-lg bg-gray-100 text-gray-700 text-sm';
+                btn.className = active ? 'catalog-subtab is-active' : 'catalog-subtab';
             });
 
             requestAnimationFrame(() => {
@@ -663,9 +784,33 @@ async function loadDataPage() {
                 margin: { l: 0, r: 0, t: 0, b: 0 },
                 legend: {
                     yanchor: 'top', y: 0.98, xanchor: 'left', x: 0.01,
-                    bgcolor: 'rgba(255,255,255,0.9)',
+                    bgcolor: 'rgba(0,0,0,0)',
                 },
             };
+
+            const batchPalette = ['#B23A2B', '#B55D4C', '#C89A4B', '#6C8B7A', '#5A7280', '#7B5B4F'];
+            const stablePalette = ['#5A7280', '#6C8B7A', '#7B5B4F', '#C89A4B', '#9E2F25', '#B55D4C', '#516B78', '#7A8F8A', '#CDBCA3'];
+
+            function hashString(str) {
+                const s = String(str ?? '');
+                let h = 2166136261;
+                for (let i = 0; i < s.length; i += 1) {
+                    h ^= s.charCodeAt(i);
+                    h = Math.imul(h, 16777619);
+                }
+                return h >>> 0;
+            }
+
+            function getBatchColor(label) {
+                const n = batchToNum(label);
+                if (n > 0) return batchPalette[(n - 1) % batchPalette.length];
+                return '#7A8F8A';
+            }
+
+            function getStableColor(key) {
+                const idx = hashString(key) % stablePalette.length;
+                return stablePalette[idx];
+            }
 
             if (mode === 'density') {
                 Plotly.react(chartEl, [
@@ -695,7 +840,7 @@ async function loadDataPage() {
                         lat: rows.map((r) => r.lat),
                         lon: rows.map((r) => r.lng),
                         text: rows.map((r) => `${r.title}<br>${r.province}-${r.city}`),
-                        marker: { size: 7 },
+                        marker: { size: 7, color: stablePalette[i % stablePalette.length] },
                         hoverinfo: 'text',
                     });
                 }
@@ -725,7 +870,7 @@ async function loadDataPage() {
                 lon: rows.map((r) => r.lng),
                 text: rows.map((r) => `${r.title}<br>${r.province}-${r.city}`),
                 hoverinfo: 'text',
-                marker: { size: 7 },
+                marker: { size: 7, color: getBatchColor(batch) },
             }));
 
             Plotly.react(chartEl, traces, layout, { displaylogo: false, responsive: true });
@@ -820,7 +965,10 @@ async function loadDataPage() {
             const labelsSankey = [...batchNodes, ...provinceNodes];
             const batchIndex = new Map(batchNodes.map((x, i) => [x, i]));
             const provinceIndex = new Map(provinceNodes.map((x, i) => [x, i + batchNodes.length]));
-            const sankeyPalette = ['#7f0000', '#9b111e', '#b22222', '#c62828', '#d32f2f', '#e53935', '#ef5350', '#f0625d', '#b71c1c', '#8b0000'];
+            // 六批建议配色（宋韵统一）
+            const songyunBatchPalette = ['#B23A2B', '#B55D4C', '#C89A4B', '#6C8B7A', '#5A7280', '#7B5B4F'];
+            // Sankey 节点较多：在六批基础上做克制扩展（不引入高饱和）
+            const sankeyPalette = [...songyunBatchPalette, '#516B78', '#7A8F8A', '#CDBCA3', ...songyunBatchPalette];
 
             const source = [];
             const target = [];
@@ -849,7 +997,7 @@ async function loadDataPage() {
                 node: {
                     pad: 14,
                     thickness: 14,
-                    line: { color: '#9ca3af', width: 1 },
+                    line: { color: '#8C6C4E', width: 1 },
                     label: labelsSankey,
                     color: labelsSankey.map((_, idx) => sankeyPalette[idx % sankeyPalette.length]),
                 },
@@ -878,7 +1026,7 @@ async function loadDataPage() {
                 text: batchRows.map((r) => r[1]),
                 textposition: 'outside',
                 marker: {
-                    color: ['#a4161a', '#ba181b', '#d00000', '#dc2f02', '#e85d04', '#f48c06', '#faa307'],
+                    color: batchRows.map((_, idx) => songyunBatchPalette[idx % songyunBatchPalette.length]),
                 },
             }], {
                 margin: { t: 40, l: 40, r: 10, b: 80 },
@@ -892,7 +1040,7 @@ async function loadDataPage() {
             const candidateProvinces = top15.map((x) => x[0]);
             const boxRows = dataRows.filter((r) => candidateProvinces.includes(r.Province || '-') && Number.isFinite(Number(r.lat)));
             const topViolinProvinces = candidateProvinces.filter((prov) => boxRows.filter((r) => (r.Province || '-') === prov).length >= 8).slice(0, 12);
-            const colorPalette = ['#d62828', '#f77f00', '#fcbf49', '#2a9d8f', '#457b9d', '#6a4c93', '#e76f51', '#8ecae6', '#264653', '#e63946', '#ff006e', '#8338ec', '#3a86ff', '#06d6a0', '#ef476f'];
+            const colorPalette = ['#5A7280', '#6C8B7A', '#7B5B4F', '#C89A4B', '#9E2F25', '#B55D4C', '#516B78', '#7A8F8A', '#CDBCA3'];
             const tracesGeo = topViolinProvinces.map((prov, idx) => {
                 const ys = boxRows.filter((r) => (r.Province || '-') === prov).map((r) => Number(r.lat));
                 return {
@@ -934,7 +1082,7 @@ async function loadDataPage() {
                 y: suffixRows.map((r) => r[1]),
                 text: suffixRows.map((r) => r[1]),
                 textposition: 'outside',
-                marker: { color: '#8B1E3F' },
+                marker: { color: '#B23A2B' },
             }], {
                 margin: { t: 20, l: 40, r: 10, b: 65 },
                 xaxis: { title: '命名后缀' },
@@ -965,8 +1113,8 @@ async function loadDataPage() {
                 mode: 'lines+markers+text',
                 text: centerRows.map((r) => r.batch),
                 textposition: 'top center',
-                line: { color: '#C0392B', width: 3, dash: 'dot' },
-                marker: { color: '#2C3E50', size: 10, symbol: 'star' },
+                line: { color: '#B23A2B', width: 3, dash: 'dot' },
+                marker: { color: '#516B78', size: 10, symbol: 'star' },
             }], {
                 margin: { t: 20, l: 40, r: 20, b: 40 },
                 xaxis: { title: '经度' },
@@ -1079,9 +1227,9 @@ async function loadDataPage() {
 
             requestAnimationFrame(() => {
                 setTimeout(() => {
-                    const activeMain = document.querySelector('#data-tab-head [data-tab].bg-red-600')?.getAttribute('data-tab');
+                    const activeMain = document.querySelector('#data-tab-head [data-tab].is-active')?.getAttribute('data-tab');
                     if (activeMain) resizeVisiblePlotly(`data-tab-${activeMain}`);
-                    const activeSub = document.querySelector('#stats-subtab-head [data-subtab].bg-blue-600')?.getAttribute('data-subtab');
+                    const activeSub = document.querySelector('#stats-subtab-head [data-subtab].is-active')?.getAttribute('data-subtab');
                     if (activeSub) resizeVisiblePlotly(`stats-subtab-${activeSub}`);
                 }, 80);
             });
@@ -1107,16 +1255,43 @@ async function loadDataPage() {
         });
 
         window.addEventListener('resize', debounce(() => {
-            const activeMain = document.querySelector('#data-tab-head [data-tab].bg-red-600')?.getAttribute('data-tab');
+            const activeMain = document.querySelector('#data-tab-head [data-tab].is-active')?.getAttribute('data-tab');
             if (activeMain) resizeVisiblePlotly(`data-tab-${activeMain}`);
-            const activeSub = document.querySelector('#stats-subtab-head [data-subtab].bg-blue-600')?.getAttribute('data-subtab');
+            const activeSub = document.querySelector('#stats-subtab-head [data-subtab].is-active')?.getAttribute('data-subtab');
             if (activeSub) resizeVisiblePlotly(`stats-subtab-${activeSub}`);
         }, 120));
+
+        function syncRangeProgress(rangeEl) {
+            if (!rangeEl) return;
+            const min = Number(rangeEl.min || 0);
+            const max = Number(rangeEl.max || 100);
+            const val = Number(rangeEl.value || 0);
+            const pct = max > min ? ((val - min) / (max - min)) * 100 : 0;
+            rangeEl.style.setProperty('--range-p', `${Math.max(0, Math.min(100, pct)).toFixed(2)}%`);
+        }
+
+        function enforceCatalogRangeSkin(rangeEl) {
+            if (!rangeEl) return;
+            try {
+                const rootStyle = getComputedStyle(document.documentElement);
+                const accentRed = rootStyle.getPropertyValue('--accent-red').trim() || '#B23A2B';
+                rangeEl.style.webkitAppearance = 'none';
+                rangeEl.style.appearance = 'none';
+                rangeEl.style.background = 'transparent';
+                // 不能写 CSS var 字符串，否则部分浏览器会忽略并回退默认蓝色
+                rangeEl.style.accentColor = accentRed;
+                rangeEl.style.outline = 'none';
+            } catch {
+                // ignore
+            }
+        }
 
         ['data-map-mode', 'data-map-radius', 'data-map-opacity', 'data-map-k'].forEach((id) => {
             const el = document.getElementById(id);
             if (!el) return;
             if (id === 'data-map-radius' || id === 'data-map-opacity' || id === 'data-map-k') {
+                enforceCatalogRangeSkin(el);
+                syncRangeProgress(el);
                 el.addEventListener('input', () => {
                     const radius = Number(document.getElementById('data-map-radius')?.value || 15);
                     const opacity = Number(document.getElementById('data-map-opacity')?.value || 70) / 100;
@@ -1127,6 +1302,13 @@ async function loadDataPage() {
                     if (labelRadius) labelRadius.textContent = String(radius);
                     if (labelOpacity) labelOpacity.textContent = opacity.toFixed(2);
                     if (labelK) labelK.textContent = String(k);
+
+                    enforceCatalogRangeSkin(document.getElementById('data-map-radius'));
+                    enforceCatalogRangeSkin(document.getElementById('data-map-opacity'));
+                    enforceCatalogRangeSkin(document.getElementById('data-map-k'));
+                    syncRangeProgress(document.getElementById('data-map-radius'));
+                    syncRangeProgress(document.getElementById('data-map-opacity'));
+                    syncRangeProgress(document.getElementById('data-map-k'));
                 });
             }
             el.addEventListener('change', () => renderMapChart(filteredCoords));
@@ -1185,6 +1367,7 @@ async function loadDataPage() {
     } catch (error) {
         console.error('数据一览加载失败:', error);
         showErrorState(container, '数据模块加载失败');
+        pageLoaded.data = false;
     }
 }
 
@@ -1212,11 +1395,11 @@ function renderMiniMap(villages) {
     const dots = valid.slice(0, 400).map((v) => {
         const x = pad + ((Number(v.lng) - minLng) / Math.max(maxLng - minLng, 0.000001)) * (width - pad * 2);
         const y = height - pad - ((Number(v.lat) - minLat) / Math.max(maxLat - minLat, 0.000001)) * (height - pad * 2);
-        return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.6" fill="#16a34a" fill-opacity="0.72"></circle>`;
+        return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.6" fill="#5F7F68" fill-opacity="0.72"></circle>`;
     }).join('');
 
     return `
-        <svg viewBox="0 0 ${width} ${height}" class="w-full h-64 rounded-lg bg-gradient-to-br from-emerald-50 to-blue-50 border border-emerald-100">
+        <svg viewBox="0 0 ${width} ${height}" class="w-full h-64 rounded-lg catalog-map-frame">
             <rect x="0" y="0" width="${width}" height="${height}" fill="transparent"></rect>
             ${dots}
         </svg>
@@ -1234,33 +1417,33 @@ async function loadTourPage() {
         const provinces = await getProvinces();
 
         container.innerHTML = `
-            <section class="max-w-7xl mx-auto px-4 py-10">
-                <header class="text-center mb-10">
-                    <h2 class="text-4xl md:text-5xl font-bold text-gray-800 mb-3">时空导览</h2>
+            <section class="max-w-7xl mx-auto px-4 py-10 paper-page-section">
+                <header class="text-center mb-10 catalog-page-header">
+                    <h2 class="text-4xl md:text-5xl font-bold text-gray-800 mb-3 catalog-section-title">时空导览</h2>
                     <p class="text-gray-600 max-w-3xl mx-auto">选择任一省份，查看其村落分布、批次结构和实景图片档案。</p>
                 </header>
 
-                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-8">
+                <div class="paper-panel catalog-panel p-5 mb-8">
                     <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
                         <div>
                             <label class="block text-sm text-gray-600 mb-2">省份</label>
-                            <select id="tour-province" class="w-full px-4 py-2 border border-gray-300 rounded-lg"></select>
+                            <select id="tour-province" class="w-full paper-input px-4 py-2"></select>
                         </div>
                         <div>
                             <label class="block text-sm text-gray-600 mb-2">城市（可选）</label>
-                            <select id="tour-city" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                            <select id="tour-city" class="w-full paper-input px-4 py-2">
                                 <option value="">全部城市</option>
                             </select>
                         </div>
                         <div>
                             <label class="block text-sm text-gray-600 mb-2">点位类型</label>
-                            <select id="tour-map-mode" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                            <select id="tour-map-mode" class="w-full paper-input px-4 py-2">
                                 <option value="city">按城市分组</option>
                                 <option value="batch">按批次分组</option>
                             </select>
                         </div>
                         <div class="flex items-end">
-                            <button id="tour-load" class="btn btn-primary w-full">查看该省导览</button>
+                            <button id="tour-load" class="btn btn-primary seal-button w-full">查看该省导览</button>
                         </div>
                         <div class="flex items-end md:col-span-1">
                             <div id="tour-summary" class="text-sm text-gray-500"></div>
@@ -1269,29 +1452,29 @@ async function loadTourPage() {
                 </div>
 
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                    <div class="paper-panel catalog-panel p-5">
                         <h3 class="text-lg font-semibold text-gray-800 mb-3">省/市村落点位图</h3>
-                        <div id="tour-map-chart" class="h-[420px]"></div>
+                        <div id="tour-map-chart" class="h-[420px] catalog-chart-frame"></div>
                     </div>
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                    <div class="paper-panel catalog-panel p-5">
                         <h3 class="text-lg font-semibold text-gray-800 mb-3">批次分布</h3>
                         <div id="tour-batch-bars"></div>
                     </div>
                 </div>
 
-                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-8">
+                <div class="paper-panel catalog-panel p-5 mb-8">
                     <h3 class="text-lg font-semibold text-gray-800 mb-3">省份影像记忆</h3>
                     <div id="tour-gallery" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
                 </div>
 
-                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="paper-panel catalog-table-panel overflow-hidden">
                     <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
                         <h3 class="text-lg font-semibold text-gray-800">省份村落明细（最多 50 条）</h3>
                         <span id="tour-table-count" class="text-sm text-gray-500"></span>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-sm">
-                            <thead class="bg-gray-50 border-b border-gray-200">
+                            <thead class="catalog-table-head border-b border-gray-200">
                                 <tr>
                                     <th class="px-4 py-3 text-left">#</th>
                                     <th class="px-4 py-3 text-left">城市</th>
@@ -1355,6 +1538,30 @@ async function loadTourPage() {
 
             const mode = mapModeSelect.value;
             const groupKey = mode === 'city' ? 'city' : 'batch';
+
+            const batchPalette = ['#B23A2B', '#B55D4C', '#C89A4B', '#6C8B7A', '#5A7280', '#7B5B4F'];
+            const stablePalette = ['#5A7280', '#6C8B7A', '#7B5B4F', '#C89A4B', '#9E2F25', '#B55D4C', '#516B78', '#7A8F8A', '#CDBCA3'];
+
+            function hashString(str) {
+                const s = String(str ?? '');
+                let h = 2166136261;
+                for (let i = 0; i < s.length; i += 1) {
+                    h ^= s.charCodeAt(i);
+                    h = Math.imul(h, 16777619);
+                }
+                return h >>> 0;
+            }
+
+            function getBatchColor(label) {
+                const n = batchToNum(label);
+                if (n > 0) return batchPalette[(n - 1) % batchPalette.length];
+                return '#7A8F8A';
+            }
+
+            function getStableColor(key) {
+                const idx = hashString(key) % stablePalette.length;
+                return stablePalette[idx];
+            }
             const grouped = new Map();
             points.forEach((p) => {
                 const key = p[groupKey];
@@ -1370,7 +1577,7 @@ async function loadTourPage() {
                 lon: list.map((x) => x.lng),
                 text: list.map((x) => `${x.title}<br>${x.city}·${x.county}<br>${x.batch}`),
                 hoverinfo: 'text',
-                marker: { size: 7 },
+                marker: { size: 7, color: groupKey === 'batch' ? getBatchColor(key) : getStableColor(key) },
             }));
 
             Plotly.react(mapContainer, traces, {
@@ -1379,7 +1586,7 @@ async function loadTourPage() {
                 margin: { l: 0, r: 0, t: 0, b: 0 },
                 legend: {
                     yanchor: 'top', y: 0.98, xanchor: 'left', x: 0.01,
-                    bgcolor: 'rgba(255,255,255,0.85)',
+                    bgcolor: 'rgba(0,0,0,0)',
                 },
             }, { displaylogo: false, responsive: true });
         }
@@ -1416,12 +1623,12 @@ async function loadTourPage() {
             countEl.textContent = `结果条数：${filtered.length}（显示前 50 条）`;
             tbody.innerHTML = limited
                 .map((v, idx) => `
-                    <tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} border-b border-gray-100 hover:bg-green-50">
+                    <tr class="catalog-table-row${idx % 2 === 0 ? '' : ' is-alt'}">
                         <td class="px-4 py-3 text-gray-500">${idx + 1}</td>
                         <td class="px-4 py-3 text-gray-700">${escapeHtml(v.City || '-')}</td>
                         <td class="px-4 py-3 text-gray-700">${escapeHtml(v.County || '-')}</td>
                         <td class="px-4 py-3 text-gray-800 font-medium">${escapeHtml(v.Village || v.Title || '-')}</td>
-                        <td class="px-4 py-3 text-center"><span class="inline-block px-2 py-1 rounded-full bg-green-50 text-green-700 text-xs font-semibold">${escapeHtml(v.Batch_Label || '未知')}</span></td>
+                        <td class="px-4 py-3 text-center"><span class="seal-badge inline-block px-2 py-1 rounded-full text-xs font-semibold">${escapeHtml(v.Batch_Label || '未知')}</span></td>
                     </tr>
                 `)
                 .join('');
@@ -1434,7 +1641,7 @@ async function loadTourPage() {
             } else {
                 galleryContainer.innerHTML = gallery
                     .map((img) => `
-                        <figure class="rounded-lg overflow-hidden border border-gray-200 bg-white">
+                        <figure class="catalog-card catalog-figure overflow-hidden">
                             <img src="${escapeHtml(img.url)}" alt="${escapeHtml(img.caption)}" class="w-full h-44 object-cover" loading="lazy">
                             <figcaption class="px-3 py-2 text-sm text-gray-600">${escapeHtml(img.caption)}</figcaption>
                         </figure>
@@ -1463,6 +1670,7 @@ async function loadTourPage() {
     } catch (error) {
         console.error('时空导览加载失败:', error);
         showErrorState(container, '时空导览模块加载失败');
+        pageLoaded.tour = false;
     }
 }
 
@@ -1476,28 +1684,28 @@ async function loadMediaPage() {
         const videos = await getMediaList();
 
         container.innerHTML = `
-            <section class="max-w-7xl mx-auto px-4 py-10">
-                <header class="text-center mb-10">
-                    <h2 class="text-4xl md:text-5xl font-bold text-gray-800 mb-3">内容推荐</h2>
+            <section class="max-w-7xl mx-auto px-4 py-10 paper-page-section">
+                <header class="text-center mb-10 catalog-page-header">
+                    <h2 class="text-4xl md:text-5xl font-bold text-gray-800 mb-3 catalog-section-title">内容推荐</h2>
                     <p class="text-gray-600 max-w-3xl mx-auto">自动读取本地视频与元数据，展示推荐片单、摘要、标签和引用语。</p>
                 </header>
 
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                    <div class="lg:col-span-2 paper-panel catalog-panel p-5">
                         <div class="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between mb-4">
                             <h3 class="text-lg font-semibold text-gray-800">推荐片单</h3>
-                            <select id="media-select" class="w-full sm:w-96 px-4 py-2 border border-gray-300 rounded-lg"></select>
+                            <select id="media-select" class="w-full sm:w-96 paper-input px-4 py-2"></select>
                         </div>
                         <video id="media-player" class="w-full rounded-lg bg-black" controls preload="metadata"></video>
                     </div>
 
-                    <aside class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                    <aside class="paper-panel catalog-panel p-5">
                         <h3 class="text-lg font-semibold text-gray-800 mb-3">影片信息</h3>
                         <div id="media-info" class="text-sm text-gray-600 space-y-3"></div>
                     </aside>
                 </div>
 
-                <div class="mt-8 bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                <div class="mt-8 paper-panel catalog-panel p-5">
                     <h3 class="text-lg font-semibold text-gray-800 mb-3">全部视频列表</h3>
                     <div id="media-cards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
                 </div>
@@ -1535,35 +1743,99 @@ async function loadMediaPage() {
                 </div>
                 <div>
                     <div class="text-xs text-gray-500">推荐语</div>
-                    <p class="mt-1 italic text-purple-700">${escapeHtml(video.quote || '暂无推荐语')}</p>
+                    <p class="mt-1 italic seal-accent">${escapeHtml(video.quote || '暂无推荐语')}</p>
                 </div>
                 <div>
                     <div class="text-xs text-gray-500 mb-1">标签</div>
                     <div class="flex flex-wrap gap-2">
-                        ${tags.length ? tags.map((t) => `<span class="inline-block px-2 py-1 rounded-full bg-purple-50 text-purple-700 text-xs">#${escapeHtml(t)}</span>`).join('') : '<span class="text-gray-400">暂无标签</span>'}
+                        ${tags.length ? tags.map((t) => `<span class="seal-badge inline-block px-2 py-1 rounded-full text-xs">#${escapeHtml(t)}</span>`).join('') : '<span class="text-gray-400">暂无标签</span>'}
                     </div>
                 </div>
             `;
         }
 
+        function getVideoUrl(video) {
+            if (video?.video_url) return video.video_url;
+            const file = video?.video_file ? String(video.video_file) : '';
+            return file ? `/assets/videos/${encodeURIComponent(file)}` : '';
+        }
+
+        function describeMediaError(err) {
+            const code = err?.code;
+            switch (code) {
+                case 1:
+                    return '视频加载被中止（可能是切换过快）。';
+                case 2:
+                    return '网络错误：视频文件可能不存在或连接中断。';
+                case 3:
+                    return '解码失败：可能是视频编码浏览器不支持（建议转 H.264/AAC）。';
+                case 4:
+                    return '格式不支持：浏览器无法播放该视频文件。';
+                default:
+                    return '视频加载失败。';
+            }
+        }
+
+        let switchSeq = 0;
         function switchVideo(index) {
             const video = videos[index];
             if (!video) return;
-            player.src = video.video_url;
+
+            const url = getVideoUrl(video);
+            if (!url) {
+                info.innerHTML = '<p class="text-red-600">视频地址缺失，无法播放。</p>';
+                return;
+            }
+
+            const seq = ++switchSeq;
+            try {
+                player.pause();
+            } catch {
+                // ignore
+            }
+
+            // 彻底取消上一段 src 的加载，避免快速切换造成卡顿/残留请求
+            try {
+                player.removeAttribute('src');
+                player.load();
+            } catch {
+                // ignore
+            }
+
+            player.src = url;
             player.load();
             renderVideoInfo(video);
-            player.play().catch(() => {
-                // 浏览器可能阻止自动播放，静默处理
+
+            // 如果切换很频繁，只保留最后一次的状态提示
+            info.dataset.mediaSwitchSeq = String(seq);
+        }
+
+        function getDefaultVideoIndex() {
+            const keywords = ['乌江寨', '贵州乌江寨', '贵州'];
+            const haystacks = videos.map((v) => {
+                const text = [v.title, v.video_file, v.summary, v.quote].filter(Boolean).join(' ');
+                return String(text);
             });
+
+            for (let i = 0; i < keywords.length; i++) {
+                const kw = keywords[i];
+                const idx = haystacks.findIndex((t) => t.includes(kw));
+                if (idx >= 0) return idx;
+            }
+            return 0;
         }
 
         player.addEventListener('error', () => {
-            info.innerHTML = '<p class="text-red-600">视频加载失败，请检查文件格式或路径编码。</p>';
+            const message = describeMediaError(player.error);
+            info.innerHTML = `
+                <div class="text-red-600 font-semibold">${escapeHtml(message)}</div>
+                <div class="text-xs text-gray-500 mt-1">提示：若长时间卡住但不报错，可能是 MP4 未做 faststart（moov 在文件尾），需要重新封装。</div>
+            `;
         });
 
         cards.innerHTML = videos
             .map((video, idx) => `
-                <article class="feature-card p-4 cursor-pointer hover:shadow-md transition" data-video-index="${idx}">
+                <article class="catalog-card p-4 cursor-pointer" data-video-index="${idx}">
                     <h4 class="font-semibold text-gray-800 line-clamp-1">${escapeHtml(video.title || video.video_file)}</h4>
                     <p class="text-sm text-gray-600 mt-2 line-clamp-3">${escapeHtml(video.summary || '暂无简介')}</p>
                     <div class="mt-3 text-xs text-gray-500">点击卡片切换播放</div>
@@ -1584,11 +1856,36 @@ async function loadMediaPage() {
             switchVideo(Number(select.value));
         });
 
-        switchVideo(0);
+        const defaultIndex = getDefaultVideoIndex();
+        select.value = String(defaultIndex);
+        switchVideo(defaultIndex);
     } catch (error) {
         console.error('内容推荐加载失败:', error);
         showErrorState(container, '内容推荐模块加载失败');
+        pageLoaded.media = false;
     }
+}
+
+let graphScriptPromise = null;
+
+function ensureGraphScriptLoaded() {
+    if (graphScriptPromise) return graphScriptPromise;
+
+    graphScriptPromise = new Promise((resolve, reject) => {
+        const src = '/static/js/graph.js?v=20260421_03';
+        const existing = document.querySelector(`script[data-graph-src="${src}"]`);
+        if (existing) return resolve();
+
+        const s = document.createElement('script');
+        s.src = src;
+        s.async = true;
+        s.setAttribute('data-graph-src', src);
+        s.addEventListener('load', () => resolve());
+        s.addEventListener('error', () => reject(new Error('graph.js 加载失败')));
+        document.head.appendChild(s);
+    });
+
+    return graphScriptPromise;
 }
 
 function setupSmoothScroll() {
@@ -1624,18 +1921,22 @@ function setupNavigation() {
 }
 
 async function initPage() {
-    const stats = await getStatistics();
-    if (stats) {
-        const footerStats = document.getElementById('footer-stats');
-        if (footerStats) {
+    // footer 统计不阻塞页面初始化
+    getStatistics()
+        .then((stats) => {
+            if (!stats) return;
+            const footerStats = document.getElementById('footer-stats');
+            if (!footerStats) return;
             footerStats.innerHTML = `
                 <li>村落总数: ${stats.total}</li>
                 <li>省份数: ${stats.provinces}</li>
                 <li>城市数: ${stats.cities}</li>
                 <li>批次数: ${stats.batches || 6}</li>
             `;
-        }
-    }
+        })
+        .catch(() => {
+            // ignore
+        });
 
     const menuToggle = document.getElementById('menu-toggle');
     const mobileMenu = document.querySelector('nav .md\\:hidden.border-t');
@@ -1647,6 +1948,7 @@ async function initPage() {
 
     setupSmoothScroll();
     setupNavigation();
+    setActiveNav(currentPage);
 
     document.body.setAttribute('data-loaded', 'true');
     initPhase4Enhancements();
@@ -1723,7 +2025,7 @@ function scrollTopWithAnimation() {
     const button = document.createElement('button');
     button.id = id;
     button.innerHTML = '↑';
-    button.className = 'fixed bottom-8 right-8 w-12 h-12 bg-red-600 text-white rounded-full shadow-lg hover:bg-red-700 transition opacity-0 pointer-events-none z-50';
+    button.className = 'fixed bottom-8 right-8 w-12 h-12 rounded-full transition opacity-0 pointer-events-none z-50 seal-fab';
     button.onclick = () => window.scrollTo({ top: 0, behavior: 'smooth' });
     document.body.appendChild(button);
 
@@ -1740,8 +2042,8 @@ function scrollTopWithAnimation() {
 
 function showNotification(message, type = 'info', duration = 2000) {
     const wrapper = document.createElement('div');
-    const color = type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-blue-600';
-    wrapper.innerHTML = `<div class="fixed top-20 left-1/2 -translate-x-1/2 ${color} text-white px-4 py-2 rounded-lg shadow-lg z-50 animate-slideUp">${escapeHtml(message)}</div>`;
+    const kind = type === 'success' ? 'catalog-toast--success' : type === 'error' ? 'catalog-toast--error' : 'catalog-toast--info';
+    wrapper.innerHTML = `<div class="fixed top-20 left-1/2 -translate-x-1/2 catalog-toast ${kind} px-4 py-2 rounded-lg z-50">${escapeHtml(message)}</div>`;
     document.body.appendChild(wrapper);
     setTimeout(() => wrapper.remove(), duration);
 }

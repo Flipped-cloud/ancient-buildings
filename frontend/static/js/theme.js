@@ -20,16 +20,26 @@ function updateThemeIcon(isDark) {
 }
 
 function setTheme(isDark) {
+    const root = document.documentElement;
     const body = document.body;
+
     if (isDark) {
+        root.classList.add(DARK_MODE_CLASS);
         body.classList.add(DARK_MODE_CLASS);
         localStorage.setItem(THEME_KEY, 'dark');
     } else {
+        root.classList.remove(DARK_MODE_CLASS);
         body.classList.remove(DARK_MODE_CLASS);
         localStorage.setItem(THEME_KEY, 'light');
     }
 
     updateThemeIcon(isDark);
+
+    try {
+        document.dispatchEvent(new CustomEvent('songyun-theme-changed', { detail: { isDark } }));
+    } catch {
+        // ignore
+    }
 }
 
 function setupThemeTransition() {
@@ -75,7 +85,7 @@ function initTheme() {
     const themeToggle = document.getElementById('theme-toggle');
     if (themeToggle) {
         themeToggle.addEventListener('click', () => {
-            const isDark = document.body.classList.contains(DARK_MODE_CLASS);
+            const isDark = document.documentElement.classList.contains(DARK_MODE_CLASS);
             themeToggle.style.transform = 'rotate(-180deg)';
             themeToggle.style.transition = 'transform 0.55s cubic-bezier(0.4, 0, 0.2, 1)';
 

@@ -13,19 +13,28 @@
 
 ### 1) 环境准备
 
+<<<<<<< HEAD
 - Python 3.9
+=======
+- Python 3.12+
+>>>>>>> 0a1dd199abff79c661e04099b746b446edd00c1f
 - pip
 
 ### 2) 安装依赖
 
 ```powershell
+<<<<<<< HEAD
 cd /d e:/jisuanjisheji/ancient-buildings
+=======
+cd d:/Python-Program/ancient-buildings
+>>>>>>> 0a1dd199abff79c661e04099b746b446edd00c1f
 pip install -r requirements.txt
 ```
 
 ### 3) 启动服务
 
 ```powershell
+<<<<<<< HEAD
 # 方式 A（推荐）：先进入项目根目录再启动
 cd /d e:/jisuanjisheji/ancient-buildings
 conda activate ancient_buildings
@@ -33,6 +42,9 @@ python -m uvicorn backend.app:app --reload --port 8000
 
 # 方式 B：不切目录也能启动（用 --app-dir 指定项目根目录）
 # python -m uvicorn --app-dir e:/jisuanjisheji/ancient-buildings backend.app:app --reload --port 8000 --reload-dir e:/jisuanjisheji/ancient-buildings
+=======
+python -m uvicorn backend.app:app --reload --port 8000
+>>>>>>> 0a1dd199abff79c661e04099b746b446edd00c1f
 ```
 
 成功日志示例：
@@ -106,6 +118,7 @@ ancient-buildings/
 
 ## 常见问题与排查
 
+<<<<<<< HEAD
 ### 0) 启动时报 `ModuleNotFoundError: No module named 'backend'`
 
 这是因为你在“非项目根目录”运行了 uvicorn（例如在 `C:\Users\<你>` 下面启动），Python 找不到同级的 `backend/` 包。
@@ -115,6 +128,8 @@ ancient-buildings/
 
 另外，`--reload` 模式下建议加上 `--reload-dir <项目根目录>`，避免 reloader 去监听用户目录导致“日志看起来像在看 C 盘”。
 
+=======
+>>>>>>> 0a1dd199abff79c661e04099b746b446edd00c1f
 ### 1) 端口 8000 被占用
 
 ```powershell
@@ -163,3 +178,10 @@ Test-Path "assets/data/中国传统村落名录(共六批8155个).xls"
 ```bash
 python -m uvicorn backend.app:app --host 0.0.0.0 --port 8000
 ```
+<<<<<<< HEAD
+=======
+
+## 文档合并说明
+
+本 README 已合并原 QUICKSTART、TROUBLESHOOTING、DOCUMENTATION_INDEX 的核心内容，项目改为单一文档入口，降低后续维护成本。
+>>>>>>> 0a1dd199abff79c661e04099b746b446edd00c1f

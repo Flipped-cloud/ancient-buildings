@@ -1612,7 +1612,7 @@ async function loadTourPage() {
             loadBtn.textContent = '加载中...';
 
             const [villages, gallery] = await Promise.all([
-                getVillages({ provinces: [province], limit: 200 }),
+                getVillages({ provinces: [province], limit: 10000 }),
                 getProvinceGallery(province, 9),
             ]);
 

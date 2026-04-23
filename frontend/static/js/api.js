@@ -149,6 +149,23 @@ async function getVillages(filters = {}) {
 }
 
 /**
+ * 获取某省全部村落数据（可选按城市过滤）
+ */
+async function getProvinceAllVillages(province, city = null) {
+    try {
+        let url = `${API_BASE}/villages/province-all?province=${encodeURIComponent(province)}`;
+        if (city) {
+            url += `&city=${encodeURIComponent(city)}`;
+        }
+        const data = await fetchJson(url);
+        return data.villages || [];
+    } catch (error) {
+        console.error('省份全量村落数据获取失败:', error);
+        return [];
+    }
+}
+
+/**
  * 获取省份分布数据（用于表格）
  */
 async function getDistributionByProvince() {

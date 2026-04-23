@@ -142,7 +142,7 @@ class DataService:
                        provinces: Optional[List[str]] = None,
                        cities: Optional[List[str]] = None,
                        batches: Optional[List[str]] = None,
-                       limit: int = 1000) -> List[Dict]:
+                       limit: Optional[int] = None) -> List[Dict]:
         """筛选村落数据"""
         if self.df is None or self.df.empty:
             return []
@@ -167,7 +167,8 @@ class DataService:
             if batch_nums:
                 df = df[df['Batch_Num'].isin(batch_nums)]
         
-        df = df.head(limit)
+        if limit is not None:
+            df = df.head(limit)
         return df.to_dict('records')
     
     def get_province_geojson(self, province_name: str) -> Optional[Dict]:

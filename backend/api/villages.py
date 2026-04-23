@@ -17,7 +17,7 @@ async def list_villages(
     provinces: Optional[List[str]] = Query(None),
     cities: Optional[List[str]] = Query(None),
     batches: Optional[List[str]] = Query(None),
-    limit: int = Query(100, ge=1, le=10000),
+    limit: Optional[int] = Query(None, ge=1),
     data_service: DataService = Depends(get_data_service)
 ):
     """
@@ -25,13 +25,32 @@ async def list_villages(
     - provinces: 省份列表
     - cities: 城市列表
     - batches: 批次列表 (如 "第1批")
-    - limit: 返回数量限制
+    - limit: 返回数量限制（不传时返回全部筛选结果）
     """
     villages = data_service.filter_villages(
         provinces=provinces,
         cities=cities,
         batches=batches,
         limit=limit
+    )
+    return {
+        "count": len(villages),
+        "villages": villages
+    }
+
+@router.get("/province-all")
+async def get_province_all_villages(
+    province: str = Query(...),
+    city: Optional[str] = Query(None),
+    data_service: DataService = Depends(get_data_service)
+):
+    """获取某省全部村落数据（可选按城市过滤，不做数量截断）"""
+    cities = [city] if city else None
+    villages = data_service.filter_villages(
+        provinces=[province],
+        cities=cities,
+        batches=None,
+        limit=None
     )
     return {
         "count": len(villages),
